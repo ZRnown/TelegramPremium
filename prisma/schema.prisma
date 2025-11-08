@@ -1,0 +1,97 @@
+// Prisma Schema for Telegram Premium Bot
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 用户表
+model User {
+  id            String   @id @default(cuid())
+  userId        String   @unique // Telegram User ID
+  username      String?
+  firstName     String?
+  lastName      String?
+  createdAt     DateTime @default(now())
+  lastActiveAt  DateTime @default(now())
+  
+  orders        Order[]
+  
+  @@index([userId])
+  @@index([username])
+  @@map("users")
+}
+
+// 订单表
+model Order {
+  id                String   @id @default(cuid())
+  reqId             String   @unique // Fragment Request ID
+  userId            String
+  targetUsername    String
+  months            Int
+  amount            Float    // CNY 金额
+  amountTon         Float?   // TON 金额
+  amountUsdt        Float?   // USDT 金额
+  paymentMethod     String   // 'alipay' | 'usdt'
+  status            String   // 订单状态
+  tonAddress        String?
+  epusdtOrderId    String?
+  epusdtToken      String?
+  epusdtPaymentUrl String?
+  alipayOrderId    String?
+  alipayQrCode     String?
+  createdAt         DateTime @default(now())
+  paidAt            DateTime?
+  completedAt       DateTime?
+  expiredAt         DateTime?
+  
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([reqId])
+  @@index([status])
+  @@index([paymentMethod])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+// 配置表
+model Config {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   // 敏感信息加密存储
+  type        String   // 配置类型
+  description String?
+  updatedAt   DateTime @default(now())
+  
+  @@map("configs")
+}
+
+// 价格表
+model Price {
+  id        String   @id @default(cuid())
+  months    Int      @unique // 订阅月数
+  price     Float    // 价格（USDT）
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+  isActive  Boolean  @default(true)
+  
+  @@map("prices")
+}
+
+// 价格历史表
+model PriceHistory {
+  id        String   @id @default(cuid())
+  months    Int
+  oldPrice  Float
+  newPrice  Float
+  updatedAt DateTime @default(now())
+  
+  @@index([months])
+  @@index([updatedAt])
+  @@map("price_history")
+}
+
