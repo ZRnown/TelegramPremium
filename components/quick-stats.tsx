@@ -12,19 +12,19 @@ interface QuickStatsProps {
 export default function QuickStats({ stats }: QuickStatsProps) {
   const items = [
     {
-      label: "Today's Revenue",
-      value: `$${stats.todayRevenue.toFixed(2)}`,
+      label: "今日收入",
+      value: `¥${stats.todayRevenue.toFixed(2)}`,
       icon: DollarSign,
       color: "text-green-600",
     },
     {
-      label: "Today's Orders",
+      label: "今日订单",
       value: stats.todayOrders.toString(),
       icon: ShoppingCart,
       color: "text-blue-600",
     },
     {
-      label: "Active Users",
+      label: "活跃用户",
       value: stats.activeUsers.toString(),
       icon: Users,
       color: "text-purple-600",
@@ -34,8 +34,8 @@ export default function QuickStats({ stats }: QuickStatsProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Today's Activity</CardTitle>
-        <CardDescription>Real-time statistics for today</CardDescription>
+        <CardTitle>今日活动</CardTitle>
+        <CardDescription>今日实时统计数据</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {items.map((item) => {

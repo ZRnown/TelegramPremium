@@ -52,19 +52,76 @@ export class FragmentApi {
   }
 
   async searchPremiumGiftRecipient({ query, months }) {
-    const { data } = await this.client.get('/searchPremiumGiftRecipient', {
-      params: {
-        hash: this.hash,
-        query,
-        months,
-      },
-    });
+    try {
+      // 使用 POST 请求，URL 为 /api?hash=...
+      // Content-Type: application/x-www-form-urlencoded
+      // 根据用户提供的示例，只需要 query 参数，不需要 months
+      const formData = new URLSearchParams();
+      formData.append('query', query);
+      // months 参数可能不需要，先不传
+      
+      const response = await this.client.post(
+        '/api',
+        formData.toString(),
+        {
+          params: {
+            hash: this.hash,
+          },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+          },
+        }
+      );
 
-    if (!data?.recipient) {
-      throw new Error('未在 Fragment 中找到指定的收礼用户');
+      const { data } = response;
+
+      // 输出完整的响应信息用于调试
+      console.log('Fragment API 响应:', JSON.stringify(data, null, 2));
+
+      // 新格式：{ ok: true, found: { recipient: "...", name: "...", photo: "..." } }
+      if (!data?.ok) {
+        const errorMsg = data?.error || data?.message || '未知错误';
+        throw new Error(`Fragment API 返回错误：${errorMsg}。响应数据：${JSON.stringify(data)}`);
+      }
+
+      if (!data?.found?.recipient) {
+        throw new Error(`未在 Fragment 中找到指定的收礼用户：${query}。响应数据：${JSON.stringify(data)}。请确保用户名正确，且该用户已注册 Telegram。`);
+      }
+
+      // 返回完整的用户信息，包括 recipient、name、photo 等
+      return {
+        recipient: data.found.recipient,
+        name: data.found.name || query,
+        photo: data.found.photo || null,
+        myself: data.found.myself || false,
+      };
+    } catch (error) {
+      // 详细的错误信息
+      if (error.response) {
+        console.error('Fragment API HTTP 错误:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+          headers: error.response.headers,
+        });
+        
+        const errorData = error.response.data;
+        const errorMessage = errorData?.error || errorData?.message || error.message;
+        throw new Error(`Fragment API HTTP 错误 (${error.response.status}): ${errorMessage}。完整响应：${JSON.stringify(errorData)}`);
+      }
+      
+      if (error.request) {
+        console.error('Fragment API 请求失败:', {
+          url: error.config?.url,
+          method: error.config?.method,
+          data: error.config?.data,
+        });
+        throw new Error(`Fragment API 请求失败：${error.message}。请检查网络连接和代理设置。`);
+      }
+      
+      // 如果是我们抛出的错误，直接抛出
+      throw error;
     }
-
-    return data.recipient;
   }
 
   async initGiftPremiumRequest({ recipient, months }) {

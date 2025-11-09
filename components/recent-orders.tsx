@@ -33,16 +33,22 @@ export default function RecentOrders({ orders }: RecentOrdersProps) {
     }
   }
 
+  const statusMap: Record<string, string> = {
+    completed: '已完成',
+    pending: '待处理',
+    failed: '失败',
+  }
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle>Recent Orders</CardTitle>
-          <CardDescription>Latest payment transactions</CardDescription>
+          <CardTitle>最近订单</CardTitle>
+          <CardDescription>最新支付交易记录</CardDescription>
         </div>
         <Button variant="ghost" size="sm" asChild>
           <Link href="/dashboard/orders">
-            View All
+            查看全部
             <ArrowRight className="ml-2 h-4 w-4" />
           </Link>
         </Button>
@@ -50,8 +56,8 @@ export default function RecentOrders({ orders }: RecentOrdersProps) {
       <CardContent>
         {orders.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            <p>No orders yet</p>
-            <p className="text-sm">Orders will appear here when users make purchases</p>
+            <p>暂无订单</p>
+            <p className="text-sm">当用户购买时，订单将显示在这里</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -60,9 +66,9 @@ export default function RecentOrders({ orders }: RecentOrdersProps) {
                 <div className="space-y-1">
                   <p className="font-medium font-mono text-sm">{order.order_no}</p>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>User: {order.telegram_id}</span>
+                    <span>用户: {order.telegram_id}</span>
                     <span>•</span>
-                    <span className="capitalize">{order.plan_type}</span>
+                    <span>{order.plan_type === 'premium' ? '会员' : order.plan_type}</span>
                   </div>
                 </div>
                 <div className="text-right space-y-1">
@@ -70,7 +76,7 @@ export default function RecentOrders({ orders }: RecentOrdersProps) {
                     {order.amount} {order.currency}
                   </p>
                   <Badge variant={getStatusVariant(order.status)} className="text-xs">
-                    {order.status}
+                    {statusMap[order.status] || order.status}
                   </Badge>
                 </div>
               </div>

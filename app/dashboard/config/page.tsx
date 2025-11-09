@@ -1,26 +1,61 @@
 import ConfigForm from "@/components/config-form"
+import ConfigHelpDialog from "@/components/config-help-dialog"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 
 async function getConfigs() {
-  // Placeholder - will fetch from database
-  return [
-    { id: 1, config_key: "bot_token", config_value: "", description: "Telegram Bot Token" },
-    { id: 2, config_key: "bot_username", config_value: "", description: "Telegram Bot Username" },
-    { id: 3, config_key: "admin_telegram_id", config_value: "", description: "Admin Telegram ID" },
-    { id: 4, config_key: "ton_wallet_address", config_value: "", description: "TON Wallet Address" },
-    { id: 5, config_key: "ton_mnemonic", config_value: "", description: "TON Wallet Mnemonic (encrypted)" },
-    { id: 6, config_key: "epusdt_api_key", config_value: "", description: "Epusdt API Key" },
-    { id: 7, config_key: "epusdt_api_secret", config_value: "", description: "Epusdt API Secret (encrypted)" },
-    { id: 8, config_key: "alipay_app_id", config_value: "", description: "Alipay App ID" },
-    { id: 9, config_key: "alipay_private_key", config_value: "", description: "Alipay Private Key (encrypted)" },
-    { id: 10, config_key: "server_url", config_value: "", description: "Server URL for webhook" },
-    {
-      id: 11,
-      config_key: "welcome_message",
-      config_value: "欢迎使用 Telegram Premium Bot！",
-      description: "Welcome Message",
-    },
-  ]
+  try {
+    const { prisma } = await import('@/lib/prisma')
+    const configs = await prisma.config.findMany({
+      orderBy: { key: 'asc' }
+    })
+    
+    // 定义所有可配置项
+    const configDefinitions = [
+      { key: "bot_token", description: "Telegram 机器人 Token" },
+      { key: "fragment_hash", description: "Fragment Hash" },
+      { key: "fragment_poll_hash", description: "Fragment Poll Hash（可选）" },
+      { key: "fragment_base_url", description: "Fragment API 基础 URL（默认：https://fragment.com/api）" },
+      { key: "ton_wallet_address", description: "TON 钱包地址" },
+      { key: "ton_mnemonic", description: "TON 钱包助记词（加密存储）" },
+      { key: "ton_endpoint", description: "TON API 端点（默认：https://toncenter.com/api/v2/jsonRPC）" },
+      { key: "ton_api_key", description: "TON API 密钥（可选）" },
+      { key: "epusdt_token", description: "Epusdt API 密钥" },
+      { key: "epusdt_base_url", description: "Epusdt API 基础 URL（默认：https://api.epusdt.com）" },
+      { key: "epusdt_notify_url", description: "Epusdt 回调地址" },
+      { key: "epusdt_redirect_url", description: "Epusdt 跳转地址" },
+      { key: "server_url", description: "服务器 URL（用于回调）" },
+    ]
+    
+    // 合并数据库中的配置和定义
+    const configMap = new Map(configs.map(c => [c.key, c]))
+    
+    return configDefinitions.map((def, index) => {
+      const existing = configMap.get(def.key)
+      return {
+        id: existing?.id || `temp_${index}`,
+        config_key: def.key,
+        config_value: existing?.value || "",
+        description: def.description,
+      }
+    })
+  } catch (error) {
+    console.error('获取配置失败:', error)
+    // 返回默认配置列表
+    const configDefinitions = [
+      { key: "bot_token", description: "Telegram 机器人 Token" },
+      { key: "fragment_hash", description: "Fragment Hash" },
+      { key: "ton_wallet_address", description: "TON 钱包地址" },
+      { key: "ton_mnemonic", description: "TON 钱包助记词（加密存储）" },
+      { key: "epusdt_token", description: "Epusdt API 密钥" },
+      { key: "server_url", description: "服务器 URL（用于回调）" },
+    ]
+    return configDefinitions.map((def, index) => ({
+      id: index + 1,
+      config_key: def.key,
+      config_value: "",
+      description: def.description,
+    }))
+  }
 }
 
 export default async function ConfigPage() {
@@ -28,9 +63,12 @@ export default async function ConfigPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">系统配置</h1>
-        <p className="text-muted-foreground">管理机器人设置和支付集成</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">系统配置</h1>
+          <p className="text-muted-foreground">管理机器人设置和支付集成</p>
+        </div>
+        <ConfigHelpDialog />
       </div>
 
       <div className="grid gap-6">
@@ -42,9 +80,23 @@ export default async function ConfigPage() {
           <CardContent>
             <ConfigForm
               configs={configs.filter((c) =>
-                ["bot_token", "bot_username", "admin_telegram_id", "server_url", "welcome_message"].includes(
+                ["bot_token", "server_url"].includes(
                   c.config_key,
                 ),
+              )}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Fragment API 设置</CardTitle>
+            <CardDescription>配置 Fragment API（Cookie 会自动获取）</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ConfigForm
+              configs={configs.filter((c) => 
+                ["fragment_hash", "fragment_poll_hash", "fragment_base_url"].includes(c.config_key)
               )}
             />
           </CardContent>
@@ -57,7 +109,9 @@ export default async function ConfigPage() {
           </CardHeader>
           <CardContent>
             <ConfigForm
-              configs={configs.filter((c) => ["ton_wallet_address", "ton_mnemonic"].includes(c.config_key))}
+              configs={configs.filter((c) => 
+                ["ton_wallet_address", "ton_mnemonic", "ton_endpoint", "ton_api_key"].includes(c.config_key)
+              )}
             />
           </CardContent>
         </Card>
@@ -69,22 +123,13 @@ export default async function ConfigPage() {
           </CardHeader>
           <CardContent>
             <ConfigForm
-              configs={configs.filter((c) => ["epusdt_api_key", "epusdt_api_secret"].includes(c.config_key))}
+              configs={configs.filter((c) => 
+                ["epusdt_token", "epusdt_base_url", "epusdt_notify_url", "epusdt_redirect_url"].includes(c.config_key)
+              )}
             />
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>支付宝支付</CardTitle>
-            <CardDescription>配置支付宝支付集成</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ConfigForm
-              configs={configs.filter((c) => ["alipay_app_id", "alipay_private_key"].includes(c.config_key))}
-            />
-          </CardContent>
-        </Card>
       </div>
     </div>
   )

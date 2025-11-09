@@ -1,5 +1,5 @@
 import { Telegraf, session, Markup } from 'telegraf';
-import { config, validateConfig, getConfigStatus } from './config.js';
+import { initializeConfig, getConfig, validateConfig, getConfigStatus } from './config.js';
 import { FragmentApi } from './fragmentApi.js';
 import { pollOrderConfirmation } from './orderPolling.js';
 import { TonPaymentService } from './tonSender.js';
@@ -13,16 +13,22 @@ import {
 import { EpusdtClient } from './epusdtClient.js';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { getPriceList, initializePrices, clearPriceCache } from './services/priceService.js';
+import { saveOrUpdateUser } from './services/userService.js';
+
+let cookieManager = null;
+let fragmentApi = null;
+let configStatus = null;
+let config = null;
+
+// 初始化配置（从数据库加载）
+await initializeConfig();
+config = getConfig();
 
 if (config.proxy.url) {
   process.env.HTTP_PROXY = config.proxy.url;
   process.env.HTTPS_PROXY = config.proxy.url;
   console.log(`✅ 已设置环境变量代理：${config.proxy.url}`);
 }
-
-let cookieManager = null;
-let fragmentApi = null;
-let configStatus = null;
 
 // 初始化价格数据
 await initializePrices();
@@ -132,10 +138,14 @@ let PRICE_LIST = {
 };
 
 // 初始化价格列表
-async function loadPrices() {
+let pricesLoaded = false;
+async function loadPrices(silent = false) {
   try {
     PRICE_LIST = await getPriceList();
-    console.log('✅ 价格列表已加载:', PRICE_LIST);
+    if (!silent && !pricesLoaded) {
+      console.log('✅ 价格列表已加载:', PRICE_LIST);
+      pricesLoaded = true;
+    }
   } catch (error) {
     console.error('加载价格失败，使用默认价格:', error);
   }
@@ -144,10 +154,10 @@ async function loadPrices() {
 // 启动时加载价格
 await loadPrices();
 
-// 定期刷新价格缓存（每 5 分钟）
+// 定期刷新价格缓存（每 5 分钟，静默加载）
 setInterval(async () => {
   clearPriceCache();
-  await loadPrices();
+  await loadPrices(true);
 }, 5 * 60 * 1000).unref();
 
 
@@ -167,8 +177,20 @@ function removeReplyKeyboard() {
 bot.start(async (ctx) => {
   ctx.session.flow = { step: 'idle' };
   
-  // 每次启动时重新加载价格，确保显示最新价格
-  await loadPrices();
+  // 保存用户信息到数据库
+  try {
+    await saveOrUpdateUser({
+      userId: ctx.from.id,
+      username: ctx.from.username,
+      firstName: ctx.from.first_name,
+      lastName: ctx.from.last_name,
+    });
+  } catch (error) {
+    console.error('保存用户信息失败:', error);
+  }
+  
+  // 每次启动时重新加载价格，确保显示最新价格（静默加载）
+  await loadPrices(true);
   
   const welcomeMessage = [
     '💎 代开会员',
@@ -191,19 +213,67 @@ bot.start(async (ctx) => {
 
 
 bot.command('gift', async (ctx) => {
+  // 保存用户信息到数据库
+  try {
+    await saveOrUpdateUser({
+      userId: ctx.from.id,
+      username: ctx.from.username,
+      firstName: ctx.from.first_name,
+      lastName: ctx.from.last_name,
+    });
+  } catch (error) {
+    console.error('保存用户信息失败:', error);
+  }
+  
   await showPurchaseMenu(ctx);
 });
 
 
 bot.hears('🎁 购买会员', async (ctx) => {
+  // 保存用户信息到数据库
+  try {
+    await saveOrUpdateUser({
+      userId: ctx.from.id,
+      username: ctx.from.username,
+      firstName: ctx.from.first_name,
+      lastName: ctx.from.last_name,
+    });
+  } catch (error) {
+    console.error('保存用户信息失败:', error);
+  }
+  
   await showPurchaseMenu(ctx);
 });
 
 bot.hears('📋 查看订单', async (ctx) => {
+  // 保存用户信息到数据库
+  try {
+    await saveOrUpdateUser({
+      userId: ctx.from.id,
+      username: ctx.from.username,
+      firstName: ctx.from.first_name,
+      lastName: ctx.from.last_name,
+    });
+  } catch (error) {
+    console.error('保存用户信息失败:', error);
+  }
+  
   await showOrderStatus(ctx);
 });
 
 bot.hears('💬 联系客服', async (ctx) => {
+  // 保存用户信息到数据库
+  try {
+    await saveOrUpdateUser({
+      userId: ctx.from.id,
+      username: ctx.from.username,
+      firstName: ctx.from.first_name,
+      lastName: ctx.from.last_name,
+    });
+  } catch (error) {
+    console.error('保存用户信息失败:', error);
+  }
+  
   await ctx.reply('💬 如需联系客服，请发送您的问题，我们会尽快回复。', getReplyKeyboard());
 });
 
@@ -218,8 +288,8 @@ async function showPurchaseMenu(ctx) {
     return;
   }
   
-  // 重新加载价格，确保显示最新价格
-  await loadPrices();
+  // 重新加载价格，确保显示最新价格（静默加载）
+  await loadPrices(true);
   
   const welcomeMessage = [
     '欢迎使用 Telegram Premium 自助开通服务。',
@@ -249,8 +319,8 @@ async function showPurchaseMenu(ctx) {
 }
 
 async function getMonthsKeyboard() {
-  // 确保使用最新价格
-  await loadPrices();
+  // 确保使用最新价格（静默加载，不打印日志）
+  await loadPrices(true);
   
   return {
     reply_markup: {
@@ -268,6 +338,18 @@ async function getMonthsKeyboard() {
 }
 
 bot.command('status', async (ctx) => {
+  // 保存用户信息到数据库
+  try {
+    await saveOrUpdateUser({
+      userId: ctx.from.id,
+      username: ctx.from.username,
+      firstName: ctx.from.first_name,
+      lastName: ctx.from.last_name,
+    });
+  } catch (error) {
+    console.error('保存用户信息失败:', error);
+  }
+  
   await showOrderStatus(ctx);
 });
 
@@ -330,6 +412,18 @@ async function showOrderStatus(ctx) {
 }
 
 bot.on('callback_query', async (ctx) => {
+  // 保存用户信息到数据库
+  try {
+    await saveOrUpdateUser({
+      userId: ctx.from.id,
+      username: ctx.from.username,
+      firstName: ctx.from.first_name,
+      lastName: ctx.from.last_name,
+    });
+  } catch (error) {
+    console.error('保存用户信息失败:', error);
+  }
+  
   const data = ctx.callbackQuery.data;
   
   try {
@@ -339,20 +433,125 @@ bot.on('callback_query', async (ctx) => {
   }
 
 
-  if (data === 'purchase:self') {
-    const user = ctx.from;
-    const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || '用户';
-    const username = user.username ? `@${user.username}` : '（未设置用户名）';
-    
-    ctx.session.flow = { step: 'selectMonths', type: 'self', targetUser: user.username || user.id.toString() };
-    
-    const monthsKeyboard = await getMonthsKeyboard();
-    await ctx.editMessageText(
-      `👤 为自己开通\n\n用户昵称：${displayName}\n用户名：${username}\n\n请选择订阅时长：`,
-      monthsKeyboard
-    );
-    return;
-  }
+      if (data === 'purchase:self') {
+        const user = ctx.from;
+        const displayName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || '用户';
+        const username = user.username ? `@${user.username}` : '（未设置用户名）';
+        
+        // 为自己开通时，使用用户名或 Telegram ID
+        const targetUsername = user.username || user.id.toString();
+        
+        // 获取用户头像
+        let userPhoto = null;
+        try {
+          const photos = await ctx.telegram.getUserProfilePhotos(user.id, 0, 1);
+          if (photos.total_count > 0 && photos.photos.length > 0) {
+            // 获取最大尺寸的头像
+            const photoSizes = photos.photos[0];
+            const largestPhoto = photoSizes[photoSizes.length - 1];
+            userPhoto = largestPhoto.file_id;
+          }
+        } catch (error) {
+          console.warn('获取用户头像失败:', error.message);
+        }
+        
+        ctx.session.flow = { step: 'confirmSelf', type: 'self', targetUser: targetUsername };
+        
+        const confirmMessage = [
+          '开通用户: ' + username,
+          '用户昵称: ' + displayName,
+          '',
+          '确定为此用户 开通/续费 Telegram Premium会员吗?',
+        ].join('\n');
+        
+        const confirmKeyboard = {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '✅ 确定', callback_data: 'confirm:self' },
+                { text: '❌ 取消', callback_data: 'cancel:self' },
+              ],
+            ],
+          },
+        };
+        
+        // 如果有头像，发送带图片的消息
+        if (userPhoto) {
+          try {
+            await ctx.editMessageMedia(
+              {
+                type: 'photo',
+                media: userPhoto,
+                caption: confirmMessage,
+              },
+              confirmKeyboard
+            );
+          } catch (error) {
+            // 如果编辑失败，尝试发送新消息
+            await ctx.replyWithPhoto(userPhoto, {
+              caption: confirmMessage,
+              ...confirmKeyboard,
+            });
+          }
+        } else {
+          // 没有头像时，只发送文本
+          await ctx.editMessageText(confirmMessage, confirmKeyboard);
+        }
+        return;
+      }
+      
+      // 处理确认为自己开通
+      if (data === 'confirm:self') {
+        const flow = ctx.session.flow || {};
+        const targetUsername = flow.targetUser;
+        
+        if (!targetUsername) {
+          // 检查当前消息是否是图片消息
+          const message = ctx.callbackQuery.message;
+          if (message.photo) {
+            await ctx.editMessageCaption('❌ 错误：未找到用户信息，请重新开始。');
+          } else {
+            await ctx.editMessageText('❌ 错误：未找到用户信息，请重新开始。');
+          }
+          return;
+        }
+        
+        ctx.session.flow = { step: 'selectMonths', type: 'self', targetUser: targetUsername };
+        
+        const monthsKeyboard = await getMonthsKeyboard();
+        
+        // 检查当前消息是否是图片消息
+        const message = ctx.callbackQuery.message;
+        if (message.photo) {
+          // 如果是图片消息，删除原消息并发送新消息
+          try {
+            await ctx.deleteMessage();
+          } catch (e) {
+            // 忽略删除失败
+          }
+          await ctx.reply('请选择订阅时长：', monthsKeyboard);
+        } else {
+          await ctx.editMessageText('请选择订阅时长：', monthsKeyboard);
+        }
+        return;
+      }
+      
+      // 处理取消
+      if (data === 'cancel:self') {
+        ctx.session.flow = { step: 'idle' };
+        const message = ctx.callbackQuery.message;
+        if (message.photo) {
+          try {
+            await ctx.deleteMessage();
+          } catch (e) {
+            // 忽略删除失败
+          }
+          await ctx.reply('已取消操作。', getReplyKeyboard());
+        } else {
+          await ctx.editMessageText('已取消操作。', getReplyKeyboard());
+        }
+        return;
+      }
 
   if (data === 'purchase:gift') {
     ctx.session.flow = { step: 'askGiftUsername', type: 'gift' };
@@ -361,48 +560,40 @@ bot.on('callback_query', async (ctx) => {
     );
     return;
   }
+  
+  // 处理确认赠送
+  if (data.startsWith('confirm:gift:')) {
+    const username = data.replace('confirm:gift:', '');
+    const flow = ctx.session.flow || {};
+    
+    ctx.session.flow = { step: 'selectMonths', username, type: 'gift' };
+    
+    const monthsKeyboard = await getMonthsKeyboard();
+    await ctx.editMessageText('请选择订阅时长：', monthsKeyboard);
+    return;
+  }
+  
+  // 处理取消赠送
+  if (data === 'cancel:gift') {
+    ctx.session.flow = { step: 'idle' };
+    await ctx.editMessageText('已取消操作。', getReplyKeyboard());
+    return;
+  }
 
   if (data.startsWith('months:')) {
     const months = Number.parseInt(data.split(':')[1], 10);
     const flow = ctx.session.flow || {};
     
+    // 直接使用 USDT 支付，不需要选择支付方式
+    const paymentMethod = 'usdt';
+    
     ctx.session.flow = {
       ...flow,
       months,
-      step: 'selectPayment',
-    };
-    
-    await ctx.editMessageText(
-      `已选择 ${months} 个月订阅\n\n请选择支付方式：`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '💳 支付宝', callback_data: 'payment:alipay' },
-              { text: '💵 TRC20 USDT', callback_data: 'payment:usdt' },
-            ],
-          ],
-        },
-      }
-    );
-    return;
-  }
-
-  if (data.startsWith('payment:')) {
-    const paymentMethod = data.split(':')[1];
-    const flow = ctx.session.flow || {};
-    const months = flow.months;
-    
-    if (!months) {
-      await ctx.editMessageText('❌ 错误：未选择订阅时长，请重新开始。');
-      return;
-    }
-    
-    ctx.session.flow = {
-      ...flow,
       paymentMethod,
     };
     
+    // 直接创建订单，不显示支付方式选择
     if (flow.type === 'self') {
       ctx.session.flow.step = 'creatingOrder';
       await processOrderCreation(ctx, flow.targetUser, months, true, paymentMethod);
@@ -415,7 +606,7 @@ bot.on('callback_query', async (ctx) => {
     } else {
       ctx.session.flow.step = 'askUsername';
       await ctx.editMessageText(
-        `已选择 ${months} 个月订阅\n支付方式：${paymentMethod === 'alipay' ? '💳 支付宝' : '💵 TRC20 USDT'}\n\n请输入接收方的用户名（无需 @）：`
+        `已选择 ${months} 个月订阅\n支付方式：💵 TRC20 USDT\n\n请输入接收方的用户名（无需 @）：`
       );
     }
     return;
@@ -473,28 +664,49 @@ async function processOrderCreation(ctx, username, months, showLoading = true, p
     return;
   }
 
+  // 保存用户信息到数据库
+  try {
+    await saveOrUpdateUser({
+      userId: ctx.from.id,
+      username: ctx.from.username,
+      firstName: ctx.from.first_name,
+      lastName: ctx.from.last_name,
+    });
+  } catch (error) {
+    console.error('保存用户信息失败:', error);
+  }
+
   const loadingMsg = showLoading ? await ctx.reply('⏳ 正在查询用户并创建订单，请稍候…', getReplyKeyboard()) : null;
 
   try {
-    const recipient = await fragmentApi.searchPremiumGiftRecipient({ query: username, months });
+    // 清理用户名：移除 @ 符号，如果是纯数字则保持原样
+    const cleanUsername = username.toString().replace(/^@/, '').trim();
+    
+    if (!cleanUsername) {
+      throw new Error('用户名不能为空');
+    }
+
+    const userInfo = await fragmentApi.searchPremiumGiftRecipient({ query: cleanUsername, months });
+    const recipient = typeof userInfo === 'string' ? userInfo : userInfo.recipient;
     const { reqId, amount } = await fragmentApi.initGiftPremiumRequest({ recipient, months });
     await fragmentApi.getGiftPremiumLink({ reqId });
     const tonPayment = await fragmentApi.getTonkeeperRequest({ reqId });
 
     ctx.session.flow = {
       step: 'waitingPayment',
-      username,
+      username: cleanUsername,
       months,
       reqId,
       amount,
       tonPayment,
+      paymentMethod,
     };
 
     const baseOrder = setUserOrder(ctx.from.id, {
       reqId,
-      username,
+      username: cleanUsername,
       months,
-      status: config.epusdt.enabled ? 'waiting_user_payment' : 'processing_payment',
+      status: paymentMethod === 'usdt' && config.epusdt.enabled ? 'waiting_user_payment' : 'processing_payment',
       amountTon: tonPayment.amountTon,
       address: tonPayment.address,
       autoPay: config.ton.autoPay,
@@ -502,6 +714,7 @@ async function processOrderCreation(ctx, username, months, showLoading = true, p
       amount,
       chatId: ctx.chat.id,
       externalIds: [reqId],
+      paymentMethod,
     });
 
     linkUserOrder(ctx.from.id, reqId);
@@ -517,35 +730,14 @@ async function processOrderCreation(ctx, username, months, showLoading = true, p
     await ctx.reply(
       [
         '🎁 订单创建成功，正在准备支付。',
-        `目标用户：@${username}`,
+        `目标用户：@${cleanUsername}`,
         `订阅时长：${months} 个月`,
         `订单号：${reqId}`,
-        `支付方式：${paymentMethod === 'alipay' ? '💳 支付宝' : '💵 TRC20 USDT'}`,
+        `支付方式：💵 TRC20 USDT`,
       ].join('\n'),
       getReplyKeyboard(),
     );
 
-    if (paymentMethod === 'alipay') {
-      // 支付宝支付逻辑
-      const alipayMessage = [
-        '💳 支付宝支付',
-        '',
-        `订单号：${reqId}`,
-        `支付金额：${amount.toFixed(2)} CNY`,
-        '',
-        '请使用支付宝扫描下方二维码完成支付：',
-        '（这里需要集成支付宝支付接口）',
-      ].join('\n');
-      
-      updateUserOrder(ctx.from.id, {
-        status: 'waiting_user_payment',
-        paymentMethod: 'alipay',
-        expirationTime: Date.now() + 10 * 60 * 1000,
-      });
-      
-      await ctx.reply(alipayMessage, getReplyKeyboard());
-      return;
-    }
 
     if (paymentMethod === 'usdt' && config.epusdt.enabled && epusdtClient) {
       try {
@@ -618,6 +810,13 @@ async function processOrderCreation(ctx, username, months, showLoading = true, p
     }
   } catch (error) {
     console.error('创建订单失败：', error);
+    console.error('错误详情：', {
+      message: error.message,
+      stack: error.stack,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
+    
     if (loadingMsg) {
       try {
         await ctx.deleteMessage(loadingMsg.message_id);
@@ -627,16 +826,35 @@ async function processOrderCreation(ctx, username, months, showLoading = true, p
     }
     ctx.session.flow = { step: 'idle' };
     if (showLoading) {
-      await ctx.reply(
-        `❌ 创建订单失败：${error.message ?? '未知错误'}\n\n请稍后重试或使用 /menu 返回主菜单。`,
-        getReplyKeyboard()
-      );
+      // 显示详细的错误信息
+      let errorMessage = `❌ 创建订单失败：${error.message ?? '未知错误'}`;
+      if (error.response) {
+        errorMessage += `\n\nHTTP 状态码：${error.response.status}`;
+        if (error.response.data) {
+          errorMessage += `\n错误详情：${JSON.stringify(error.response.data)}`;
+        }
+      }
+      errorMessage += '\n\n请稍后重试或联系客服。';
+      
+      await ctx.reply(errorMessage, getReplyKeyboard());
     }
     throw error;
   }
 }
 
 bot.on('text', async (ctx) => {
+  // 保存用户信息到数据库
+  try {
+    await saveOrUpdateUser({
+      userId: ctx.from.id,
+      username: ctx.from.username,
+      firstName: ctx.from.first_name,
+      lastName: ctx.from.last_name,
+    });
+  } catch (error) {
+    console.error('保存用户信息失败:', error);
+  }
+  
   const text = ctx.message.text.trim();
   const { flow } = ctx.session;
 
@@ -654,13 +872,72 @@ bot.on('text', async (ctx) => {
       }
 
       if (usernames.length === 1) {
-        ctx.session.flow = { step: 'selectMonths', username: usernames[0], type: 'gift' };
-        const monthsKeyboard = await getMonthsKeyboard();
-        await ctx.reply(
-          `已选择用户：@${usernames[0]}\n\n请选择订阅时长：`,
-          monthsKeyboard
-        );
+        // 单个用户，先查询用户信息并显示确认界面
+        const username = usernames[0];
+        ctx.session.flow = { step: 'confirmGift', username, type: 'gift' };
+        
+        // 先查询用户信息（仅用于查询用户，不传 months）
+        try {
+          const userInfo = await fragmentApi.searchPremiumGiftRecipient({ query: username });
+          
+          // 从 Fragment API 返回的数据中提取用户信息
+          const displayName = userInfo.name || username; // 使用 API 返回的 name，如果没有则使用用户名
+          const usernameDisplay = username.startsWith('@') ? username : `@${username}`;
+          
+          // 提取头像 URL（如果 API 返回了 photo HTML）
+          let userPhotoUrl = null;
+          if (userInfo.photo) {
+            // 从 HTML img 标签中提取 src
+            const match = userInfo.photo.match(/src="([^"]+)"/);
+            if (match) {
+              userPhotoUrl = match[1];
+            }
+          }
+          
+          const confirmMessage = [
+            '开通用户: ' + usernameDisplay,
+            '用户昵称: ' + displayName,
+            '',
+            '确定为此用户 开通/续费 Telegram Premium会员吗?',
+          ].join('\n');
+          
+          const confirmKeyboard = {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '✅ 确定', callback_data: `confirm:gift:${username}` },
+                  { text: '❌ 取消', callback_data: 'cancel:gift' },
+                ],
+              ],
+            },
+          };
+          
+          // 如果有头像 URL，尝试发送带图片的消息
+          if (userPhotoUrl) {
+            try {
+              await ctx.replyWithPhoto(userPhotoUrl, {
+                caption: confirmMessage,
+                ...confirmKeyboard,
+              });
+            } catch (error) {
+              console.warn('发送头像图片失败，使用文本消息:', error.message);
+              await ctx.reply(confirmMessage, confirmKeyboard);
+            }
+          } else {
+            await ctx.reply(confirmMessage, confirmKeyboard);
+          }
+          
+          // 保存用户信息到 session，供后续使用
+          ctx.session.flow.userInfo = userInfo;
+        } catch (error) {
+          console.error('查询用户信息失败:', error);
+          await ctx.reply(
+            `❌ 查询用户失败：${error.message}\n\n请确保用户名正确，且该用户已注册 Telegram。`,
+            getReplyKeyboard()
+          );
+        }
       } else {
+        // 批量用户，直接进入选择时长
         ctx.session.flow = { step: 'selectMonths', usernames, type: 'gift' };
         const monthsKeyboard = await getMonthsKeyboard();
         await ctx.reply(

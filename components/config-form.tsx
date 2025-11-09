@@ -85,7 +85,7 @@ export default function ConfigForm({ configs }: ConfigFormProps) {
                 id={config.config_key}
                 value={values[config.config_key] || ""}
                 onChange={(e) => setValues({ ...values, [config.config_key]: e.target.value })}
-                placeholder={`Enter ${config.description.toLowerCase()}`}
+                placeholder={`请输入${config.description}`}
                 className="font-mono text-sm"
               />
             ) : (
@@ -94,7 +94,7 @@ export default function ConfigForm({ configs }: ConfigFormProps) {
                 type={isSecret ? "password" : "text"}
                 value={values[config.config_key] || ""}
                 onChange={(e) => setValues({ ...values, [config.config_key]: e.target.value })}
-                placeholder={`Enter ${config.description.toLowerCase()}`}
+                placeholder={`请输入${config.description}`}
               />
             )}
           </div>

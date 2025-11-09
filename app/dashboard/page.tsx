@@ -94,49 +94,6 @@ export default async function DashboardPage() {
 
       {/* Recent Orders */}
       <RecentOrders orders={data.recentOrders} />
-
-      {/* 快速开始指南 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>快速开始</CardTitle>
-          <CardDescription>通过配置机器人设置开始使用</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                1
-              </div>
-              <div>
-                <p className="font-medium">配置机器人设置</p>
-                <p className="text-sm text-muted-foreground">
-                  在配置页面设置您的机器人 Token 和支付方式
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                2
-              </div>
-              <div>
-                <p className="font-medium">设置价格方案</p>
-                <p className="text-sm text-muted-foreground">
-                  在价格管理页面配置您的订阅方案和价格
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                3
-              </div>
-              <div>
-                <p className="font-medium">监控活动</p>
-                <p className="text-sm text-muted-foreground">跟踪用户、订单和收入情况</p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }

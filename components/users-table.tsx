@@ -75,7 +75,7 @@ export default function UsersTable({ users }: UsersTableProps) {
                   <TableCell>{user.telegram_id}</TableCell>
                   <TableCell>
                     <Badge variant={user.is_premium ? "default" : "secondary"}>
-                      {user.is_premium ? "Premium" : "免费"}
+                      {user.is_premium ? "会员" : "免费"}
                     </Badge>
                   </TableCell>
                   <TableCell>

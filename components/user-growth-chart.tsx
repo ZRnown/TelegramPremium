@@ -22,8 +22,8 @@ export default function UserGrowthChart({ data }: UserGrowthChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>User Growth</CardTitle>
-        <CardDescription>Total registered users over time</CardDescription>
+        <CardTitle>用户增长</CardTitle>
+        <CardDescription>注册用户总数随时间变化</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-80">

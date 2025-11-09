@@ -16,7 +16,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 const prisma = globalForPrisma.prisma || new PrismaClient({
-  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+  log: ['error'], // 只记录错误，不记录查询日志
 });
 
 if (process.env.NODE_ENV !== 'production') {

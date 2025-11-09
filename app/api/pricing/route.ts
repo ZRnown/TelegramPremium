@@ -41,19 +41,19 @@ export async function PUT(request: NextRequest) {
       where: { months: priceData.months }
     })
 
-    await prisma.price.upsert({
-      where: { months: priceData.months },
-      update: { 
-        price: priceData.price,
-        isActive: priceData.isActive !== undefined ? priceData.isActive : true,
-        updatedAt: new Date()
-      },
-      create: {
-        months: priceData.months,
-        price: priceData.price,
-        isActive: priceData.isActive !== undefined ? priceData.isActive : true
-      }
-    })
+        await prisma.price.upsert({
+          where: { months: priceData.months },
+          update: { 
+            price: priceData.price,
+            isActive: true,
+            updatedAt: new Date()
+          },
+          create: {
+            months: priceData.months,
+            price: priceData.price,
+            isActive: true
+          }
+        })
 
     if (oldPrice && oldPrice.price !== priceData.price) {
       await prisma.priceHistory.create({

@@ -20,7 +20,7 @@ export default function DashboardSidebar() {
   return (
     <aside className="w-64 border-r bg-card">
       <div className="flex h-16 items-center border-b px-6">
-        <h1 className="text-xl font-bold">Telegram Premium Bot</h1>
+        <h1 className="text-xl font-bold">Telegram 会员机器人</h1>
       </div>
       <nav className="space-y-1 p-4">
         {navigation.map((item) => {

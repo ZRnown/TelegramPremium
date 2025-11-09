@@ -5,7 +5,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { Edit2, Save, X } from "lucide-react"
 
@@ -44,7 +43,6 @@ export default function PricingTable({ prices }: PricingTableProps) {
         body: JSON.stringify({
           months,
           price: editValues.price,
-          isActive: editValues.is_active,
         }),
       })
 
@@ -83,7 +81,6 @@ export default function PricingTable({ prices }: PricingTableProps) {
             <TableHead>时长</TableHead>
             <TableHead>价格</TableHead>
             <TableHead>货币</TableHead>
-            <TableHead>状态</TableHead>
             <TableHead className="text-right">操作</TableHead>
           </TableRow>
         </TableHeader>
@@ -93,7 +90,7 @@ export default function PricingTable({ prices }: PricingTableProps) {
 
             return (
               <TableRow key={price.id}>
-                <TableCell className="capitalize font-medium">Premium</TableCell>
+                <TableCell className="font-medium">会员</TableCell>
                 <TableCell>{price.months ? `${price.months} 个月` : `${price.duration_days} 天`}</TableCell>
                 <TableCell>
                   {isEditing ? (
@@ -109,18 +106,6 @@ export default function PricingTable({ prices }: PricingTableProps) {
                   )}
                 </TableCell>
                 <TableCell>{price.currency}</TableCell>
-                <TableCell>
-                  {isEditing ? (
-                    <Switch
-                      checked={editValues.is_active}
-                      onCheckedChange={(checked) => setEditValues({ ...editValues, is_active: checked })}
-                    />
-                  ) : (
-                    <Badge variant={price.is_active ? "default" : "secondary"}>
-                      {price.is_active ? "启用" : "禁用"}
-                    </Badge>
-                  )}
-                </TableCell>
                 <TableCell className="text-right">
                   {isEditing ? (
                     <div className="flex justify-end gap-2">

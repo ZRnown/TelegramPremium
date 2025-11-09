@@ -25,8 +25,8 @@ export default function OrdersChart({ data }: OrdersChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Orders Overview</CardTitle>
-        <CardDescription>Daily orders this week</CardDescription>
+        <CardTitle>订单概览</CardTitle>
+        <CardDescription>本周每日订单数</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-80">

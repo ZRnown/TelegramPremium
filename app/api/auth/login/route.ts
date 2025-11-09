@@ -1,9 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createSession } from "@/lib/auth"
 
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
-    const { username, password } = await request.json()
+    const body = await request.json()
+    const { username, password } = body
+
+    if (!username || !password) {
+      return NextResponse.json({ error: "用户名和密码不能为空" }, { status: 400 })
+    }
 
     const session = await createSession(username, password)
 
@@ -14,6 +22,9 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('登录失败:', error)
-    return NextResponse.json({ error: "内部服务器错误" }, { status: 500 })
+    return NextResponse.json({ 
+      error: "内部服务器错误",
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 })
   }
 }

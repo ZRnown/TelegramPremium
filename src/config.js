@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { getAllConfig as loadAllConfigFromDB } from './services/configService.js';
 
 dotenv.config();
 
@@ -10,38 +11,107 @@ function requireEnv(name, fallback = undefined) {
   return fallback;
 }
 
-export const config = {
-  telegramBotToken: requireEnv('BOT_TOKEN'),
+// 异步初始化配置
+let configInitialized = false;
+// 提供默认配置对象，避免导入时出错
+let config = {
+  telegramBotToken: null,
   fragment: {
-    baseURL: requireEnv('FRAGMENT_BASE_URL', 'https://fragment.com/api'),
-    cookie: requireEnv('FRAGMENT_COOKIE'),
-    hash: requireEnv('FRAGMENT_HASH'),
-    pollHash: requireEnv('FRAGMENT_POLL_HASH', requireEnv('FRAGMENT_HASH')),
-    autoRefresh: requireEnv('FRAGMENT_AUTO_REFRESH', 'true').toLowerCase() === 'true',
+    baseURL: 'https://fragment.com/api',
+    cookie: null,
+    hash: null,
+    pollHash: null,
+    autoRefresh: true,
   },
   ton: {
-    endpoint: requireEnv('TON_ENDPOINT', 'https://toncenter.com/api/v2/jsonRPC'),
-    apiKey: requireEnv('TON_API_KEY'),
-    mnemonic: requireEnv('TON_MNEMONIC'),
-    autoPay: requireEnv('TON_AUTOPAY', 'true').toLowerCase() === 'true',
+    endpoint: 'https://toncenter.com/api/v2/jsonRPC',
+    apiKey: null,
+    mnemonic: null,
+    autoPay: true,
   },
   epusdt: {
-    baseURL: requireEnv('EPUSDT_BASE_URL', 'https://api.epusdt.com'),
-    token: requireEnv('EPUSDT_TOKEN'),
-    notifyUrl: requireEnv('EPUSDT_NOTIFY_URL'),
-    redirectUrl: requireEnv('EPUSDT_REDIRECT_URL'),
+    baseURL: 'https://api.epusdt.com',
+    token: null,
+    notifyUrl: null,
+    redirectUrl: null,
+    enabled: false,
   },
   server: {
-    port: Number.parseInt(requireEnv('SERVER_PORT', '3000'), 10),
+    port: 3000,
   },
   store: {
-    orderTtlMs: Number.parseInt(requireEnv('ORDER_TTL_SECONDS', '900'), 10) * 1000,
-    maxEntries: Number.parseInt(requireEnv('ORDER_MAX_ENTRIES', '500'), 10),
+    orderTtlMs: 15 * 60 * 1000,
+    maxEntries: 500,
   },
   proxy: {
-    url: requireEnv('HTTP_PROXY'),
+    url: null,
   },
 };
+
+export async function initializeConfig() {
+  if (configInitialized) {
+    return config;
+  }
+
+  // 从数据库加载配置
+  const dbConfig = await loadAllConfigFromDB();
+
+  config = {
+    telegramBotToken: dbConfig['bot_token'] || requireEnv('BOT_TOKEN'),
+    fragment: {
+      baseURL: dbConfig['fragment_base_url'] || requireEnv('FRAGMENT_BASE_URL', 'https://fragment.com/api'),
+      cookie: dbConfig['fragment_cookie'] || requireEnv('FRAGMENT_COOKIE'),
+      hash: dbConfig['fragment_hash'] || requireEnv('FRAGMENT_HASH'),
+      pollHash: dbConfig['fragment_poll_hash'] || dbConfig['fragment_hash'] || requireEnv('FRAGMENT_POLL_HASH', requireEnv('FRAGMENT_HASH')),
+      autoRefresh: (dbConfig['fragment_auto_refresh'] || requireEnv('FRAGMENT_AUTO_REFRESH', 'true')).toLowerCase() === 'true',
+    },
+    ton: {
+      endpoint: dbConfig['ton_endpoint'] || requireEnv('TON_ENDPOINT', 'https://toncenter.com/api/v2/jsonRPC'),
+      apiKey: dbConfig['ton_api_key'] || requireEnv('TON_API_KEY'),
+      mnemonic: dbConfig['ton_mnemonic'] || requireEnv('TON_MNEMONIC'),
+      autoPay: (dbConfig['ton_autopay'] || requireEnv('TON_AUTOPAY', 'true')).toLowerCase() === 'true',
+    },
+    epusdt: {
+      baseURL: dbConfig['epusdt_base_url'] || requireEnv('EPUSDT_BASE_URL', 'https://api.epusdt.com'),
+      token: dbConfig['epusdt_token'] || requireEnv('EPUSDT_TOKEN'),
+      notifyUrl: dbConfig['epusdt_notify_url'] || requireEnv('EPUSDT_NOTIFY_URL'),
+      redirectUrl: dbConfig['epusdt_redirect_url'] || requireEnv('EPUSDT_REDIRECT_URL'),
+    },
+    server: {
+      port: Number.parseInt(dbConfig['server_port'] || requireEnv('SERVER_PORT', '3000'), 10),
+    },
+    store: {
+      orderTtlMs: Number.parseInt(dbConfig['order_ttl_seconds'] || requireEnv('ORDER_TTL_SECONDS', '900'), 10) * 1000,
+      maxEntries: Number.parseInt(dbConfig['order_max_entries'] || requireEnv('ORDER_MAX_ENTRIES', '500'), 10),
+    },
+    proxy: {
+      url: dbConfig['http_proxy'] || requireEnv('HTTP_PROXY'),
+    },
+  };
+
+  configInitialized = true;
+  return config;
+}
+
+// 获取配置（如果未初始化则先初始化）
+export async function getConfigAsync() {
+  if (!configInitialized) {
+    await initializeConfig();
+  }
+  return config;
+}
+
+// 同步获取配置（必须在初始化后调用）
+export function getConfig() {
+  if (!configInitialized) {
+    throw new Error('配置未初始化，请先调用 initializeConfig()');
+  }
+  return config;
+}
+
+// 为了向后兼容，导出一个 config 对象（会在初始化后更新）
+// 注意：这个对象在初始化前是 null，初始化后才会被赋值
+export { config };
 
 export function getConfigStatus() {
   const issues = [];

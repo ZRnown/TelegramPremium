@@ -24,8 +24,8 @@ export default function RevenueChart({ data }: RevenueChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Revenue Trend</CardTitle>
-        <CardDescription>Monthly revenue over time</CardDescription>
+        <CardTitle>收入趋势</CardTitle>
+        <CardDescription>月度收入随时间变化</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-80">
