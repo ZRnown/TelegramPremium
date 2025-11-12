@@ -76,13 +76,19 @@ async function ensureBalanceOrRequestPayment(ctx, months) {
     await ctx.reply(`⚠️ 余额不足\n需要支付：${priceUsdt.toFixed(2)} USDT\n当前余额：${balance.toFixed(2)} USDT\n仍需：${need.toFixed(2)} USDT`, getReplyKeyboard());
 
     try {
-      // 创建充值订单记录（pending）
-      await prisma.rechargeOrder.create({
+      // 创建统一订单（充值），状态 waiting_user_payment
+      await prisma.order.create({
         data: {
-          orderId: `RECHARGE_${Date.now()}_${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+          reqId: null,
           userId: user.id,
-          amount: need,
-          status: 'pending',
+          targetUsername: ctx.from.username || '',
+          months: 0,
+          amount: 0,
+          amountTon: null,
+          amountUsdt: need,
+          paymentMethod: 'usdt',
+          status: 'waiting_user_payment',
+          type: 'recharge',
           expiredAt: new Date(Date.now() + 10 * 60 * 1000),
         },
       });

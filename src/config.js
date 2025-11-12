@@ -1,15 +1,4 @@
-import dotenv from 'dotenv';
 import { getAllConfig as loadAllConfigFromDB } from './services/configService.js';
-
-dotenv.config();
-
-function requireEnv(name, fallback = undefined) {
-  const value = process.env[name];
-  if (value && value.trim()) {
-    return value.trim();
-  }
-  return fallback;
-}
 
 // 异步初始化配置
 let configInitialized = false;
@@ -55,37 +44,37 @@ export async function initializeConfig() {
   const dbConfig = await loadAllConfigFromDB();
 
   config = {
-    telegramBotToken: dbConfig['bot_token'] || requireEnv('BOT_TOKEN'),
+    telegramBotToken: dbConfig['bot_token'] || null,
     fragment: {
-      baseURL: dbConfig['fragment_base_url'] || requireEnv('FRAGMENT_BASE_URL', 'https://fragment.com'),
-      cookie: dbConfig['fragment_cookie'] || requireEnv('FRAGMENT_COOKIE'),
-      hash: dbConfig['fragment_hash'] || requireEnv('FRAGMENT_HASH'),
-      pollHash: dbConfig['fragment_poll_hash'] || dbConfig['fragment_hash'] || requireEnv('FRAGMENT_POLL_HASH', requireEnv('FRAGMENT_HASH')),
-      autoRefresh: (dbConfig['fragment_auto_refresh'] || requireEnv('FRAGMENT_AUTO_REFRESH', 'true')).toLowerCase() === 'true',
+      baseURL: dbConfig['fragment_base_url'] || 'https://fragment.com',
+      cookie: dbConfig['fragment_cookie'] || null,
+      hash: dbConfig['fragment_hash'] || null,
+      pollHash: dbConfig['fragment_poll_hash'] || dbConfig['fragment_hash'] || null,
+      autoRefresh: String(dbConfig['fragment_auto_refresh'] || 'true').toLowerCase() === 'true',
       // 钱包信息（用于 getGiftPremiumLink，默认值在 FragmentApi 中硬编码）
-      walletAccount: dbConfig['fragment_wallet_account'] || requireEnv('FRAGMENT_WALLET_ACCOUNT', null),
-      walletDevice: dbConfig['fragment_wallet_device'] || requireEnv('FRAGMENT_WALLET_DEVICE', null),
+      walletAccount: dbConfig['fragment_wallet_account'] || null,
+      walletDevice: dbConfig['fragment_wallet_device'] || null,
     },
     ton: {
-      endpoint: dbConfig['ton_endpoint'] || requireEnv('TON_ENDPOINT', 'https://toncenter.com/api/v2/jsonRPC'),
-      apiKey: dbConfig['ton_api_key'] || requireEnv('TON_API_KEY'),
-      mnemonic: dbConfig['ton_mnemonic'] || requireEnv('TON_MNEMONIC'),
-      autoPay: (dbConfig['ton_autopay'] || requireEnv('TON_AUTOPAY', 'true')).toLowerCase() === 'true',
+      endpoint: dbConfig['ton_endpoint'] || 'https://toncenter.com/api/v2/jsonRPC',
+      apiKey: dbConfig['ton_api_key'] || null,
+      mnemonic: dbConfig['ton_mnemonic'] || null,
+      autoPay: String(dbConfig['ton_autopay'] || 'true').toLowerCase() === 'true',
     },
     telegramWallet: {
-      apiId: Number.parseInt(dbConfig['telegram_wallet_api_id'] || requireEnv('TELEGRAM_WALLET_API_ID', '0'), 10) || null,
-      apiHash: dbConfig['telegram_wallet_api_hash'] || requireEnv('TELEGRAM_WALLET_API_HASH'),
-      sessionString: dbConfig['telegram_wallet_session'] || requireEnv('TELEGRAM_WALLET_SESSION'),
+      apiId: Number.parseInt(dbConfig['telegram_wallet_api_id'] || '0', 10) || null,
+      apiHash: dbConfig['telegram_wallet_api_hash'] || null,
+      sessionString: dbConfig['telegram_wallet_session'] || null,
     },
     server: {
-      port: Number.parseInt(dbConfig['server_port'] || requireEnv('SERVER_PORT', '3000'), 10),
+      port: Number.parseInt(dbConfig['server_port'] || '3000', 10),
     },
     store: {
-      orderTtlMs: Number.parseInt(dbConfig['order_ttl_seconds'] || requireEnv('ORDER_TTL_SECONDS', '900'), 10) * 1000,
-      maxEntries: Number.parseInt(dbConfig['order_max_entries'] || requireEnv('ORDER_MAX_ENTRIES', '500'), 10),
+      orderTtlMs: Number.parseInt(dbConfig['order_ttl_seconds'] || '900', 10) * 1000,
+      maxEntries: Number.parseInt(dbConfig['order_max_entries'] || '500', 10),
     },
     proxy: {
-      url: dbConfig['http_proxy'] || requireEnv('HTTP_PROXY'),
+      url: dbConfig['http_proxy'] || null,
     },
   };
 

@@ -304,11 +304,66 @@ export class TelegramWalletService {
       ? (username.startsWith('@') ? username : `@${username}`)
       : String(userId);
     const rounded = Number(amount).toFixed(2).replace(/\.00$/, '');
-    const message = `@iipay -${rounded}`;
-    console.log('💬 [Wallet] 向用户发起收款请求', { peer, amount: rounded });
-    const result = await this.client.sendMessage(peer, { message });
-    console.log('✅ [Wallet] 收款消息已发送', { id: result?.id || null });
-    return { success: true, result };
+    const query = `-${rounded}`;
+    console.log('💬 [Wallet] 通过 Inline 模式发起收款请求', { peer, query });
+
+    try {
+      // 解析对话与机器人实体
+      const peerEntity = await this.client.getInputEntity(peer);
+      const botEntity = await this.client.getInputEntity('iipay');
+
+      // 第一步：获取 inline 结果
+      const botResults = await this.client.invoke(
+        new Api.messages.GetInlineBotResults({
+          bot: botEntity,
+          peer: peerEntity,
+          query,
+          offset: '',
+        })
+      );
+
+      const results = botResults?.results || [];
+      if (!results.length) {
+        console.warn('⚠️ [Wallet] 未获取到 @iipay 的 Inline 结果，将回退为直接发送文本提示');
+        const fallback = await this.client.sendMessage(peer, { message: `@iipay ${query}` });
+        return { success: true, mode: 'fallback_text', result: fallback };
+      }
+
+      // 查找“USDT”选项（优先匹配标题/描述，退化到 sendMessage 文案）
+      const pickUSDT = (item) => {
+        const title = (item.title || '').toUpperCase();
+        const desc = (item.description || '').toUpperCase();
+        const msg = (item.sendMessage?.message || '').toUpperCase();
+        return title.includes('USDT') || desc.includes('USDT') || msg.includes('USDT');
+      };
+      const target = results.find(pickUSDT) || results[0];
+      if (!target?.id) {
+        console.warn('⚠️ [Wallet] 未找到可用 Inline 结果，将回退为直接发送文本提示');
+        const fallback = await this.client.sendMessage(peer, { message: `@iipay ${query}` });
+        return { success: true, mode: 'fallback_text', result: fallback };
+      }
+
+      // 第二步：发送所选 Inline 结果到目标对话（相当于点击“收款 USDT”）
+      const randomId = BigInt(Math.floor(Math.random() * 2 ** 53));
+      const sent = await this.client.invoke(
+        new Api.messages.SendInlineBotResult({
+          peer: peerEntity,
+          queryId: botResults.queryId,
+          id: target.id,
+          randomId,
+        })
+      );
+
+      console.log('✅ [Wallet] 已选择并发送 Inline 结果（收款 USDT）', {
+        chosenId: target.id,
+        updates: sent?.updates?.length || 0,
+      });
+      return { success: true, mode: 'inline', result: sent };
+    } catch (err) {
+      console.error('❌ [Wallet] Inline 收款流程失败，将回退为直接发送文本提示:', err?.message || err);
+      const fallback = await this.client.sendMessage(peer, { message: `@iipay ${query}` });
+      return { success: true, mode: 'fallback_text', result: fallback };
+    }
   }
 
   /**

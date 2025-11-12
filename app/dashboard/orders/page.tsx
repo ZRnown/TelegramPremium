@@ -2,23 +2,31 @@ import OrdersTable from "@/components/orders-table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ShoppingCart, Clock, CheckCircle, XCircle } from "lucide-react"
 
-async function getOrders() {
-  // Placeholder - will fetch from database
-  return []
-}
-
-async function getOrderStats() {
-  return {
-    total: 0,
-    pending: 0,
-    completed: 0,
-    failed: 0,
-  }
-}
-
 export default async function OrdersPage() {
-  const orders = await getOrders()
-  const stats = await getOrderStats()
+  const { prisma } = await import('@/lib/prisma')
+  const rawOrders = await prisma.order.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+    include: { user: { select: { id: true, userId: true, username: true } } },
+  })
+  const orders = rawOrders.map(o => ({
+    id: o.id,
+    user: o.user as { id: string; userId: string; username: string | null },
+    type: (o as any).type ?? 'gift',
+    status: o.status,
+    paymentMethod: o.paymentMethod,
+    amountUsdt: o.amountUsdt,
+    months: o.months,
+    targetUsername: o.targetUsername,
+    createdAt: o.createdAt.toISOString(),
+    paidAt: o.paidAt ? o.paidAt.toISOString() : null,
+  }))
+
+  const total = await prisma.order.count()
+  const pending = await prisma.order.count({ where: { status: 'pending' } })
+  const completed = await prisma.order.count({ where: { status: 'completed' } })
+  const failed = await prisma.order.count({ where: { status: 'failed' } })
+  const stats = { total, pending, completed, failed }
 
   return (
     <div className="space-y-6">

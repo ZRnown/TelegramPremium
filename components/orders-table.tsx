@@ -8,17 +8,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search } from "lucide-react"
 
 interface Order {
-  id: number
-  order_no: string
-  telegram_id: string
-  payment_method: string
-  amount: number
-  currency: string
+  id: string
+  user: { id: string; userId: string; username?: string | null }
+  type: string
   status: string
-  plan_type: string
-  duration_days: number
-  created_at: string
-  paid_at?: string
+  paymentMethod: string
+  amountUsdt?: number | null
+  months: number
+  targetUsername: string
+  createdAt: string
+  paidAt?: string | null
 }
 
 interface OrdersTableProps {
@@ -30,8 +29,10 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
   const [statusFilter, setStatusFilter] = useState("all")
 
   const filteredOrders = orders.filter((order) => {
-    const matchesSearch =
-      order.order_no.toLowerCase().includes(search.toLowerCase()) || order.telegram_id.includes(search)
+    const s = search.toLowerCase()
+    const uid = order.user?.userId || ''
+    const uname = order.user?.username || ''
+    const matchesSearch = uid.includes(search) || uname.toLowerCase().includes(s) || order.targetUsername.toLowerCase().includes(s)
     const matchesStatus = statusFilter === "all" || order.status === statusFilter
     return matchesSearch && matchesStatus
   })
@@ -78,13 +79,12 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>订单号</TableHead>
-              <TableHead>用户 ID</TableHead>
-              <TableHead>方案</TableHead>
+              <TableHead>用户</TableHead>
+              <TableHead>类型</TableHead>
               <TableHead>支付方式</TableHead>
-              <TableHead>金额</TableHead>
+              <TableHead>金额（USDT）</TableHead>
               <TableHead>状态</TableHead>
-              <TableHead>日期</TableHead>
+              <TableHead>创建时间</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -100,29 +100,28 @@ export default function OrdersTable({ orders }: OrdersTableProps) {
                   completed: '已完成',
                   pending: '待处理',
                   failed: '失败',
+                  waiting_user_payment: '待用户付款',
+                  processing_payment: '处理中',
                 }
                 const paymentMap: Record<string, string> = {
                   alipay: '支付宝',
-                  usdt: 'TRC20 USDT',
+                  usdt: 'USDT',
                 }
                 return (
                   <TableRow key={order.id}>
-                    <TableCell className="font-mono text-sm">{order.order_no}</TableCell>
-                    <TableCell>{order.telegram_id}</TableCell>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{order.plan_type}</div>
-                        <div className="text-sm text-muted-foreground">{order.duration_days} 天</div>
+                        <div className="font-mono text-sm">{order.user?.userId || '-'}</div>
+                        <div className="text-sm text-muted-foreground">@{order.user?.username || order.targetUsername}</div>
                       </div>
                     </TableCell>
-                    <TableCell>{paymentMap[order.payment_method] || order.payment_method}</TableCell>
-                    <TableCell>
-                      {order.amount} {order.currency}
-                    </TableCell>
+                    <TableCell>{order.type === 'recharge' ? '充值' : '礼物'}</TableCell>
+                    <TableCell>{paymentMap[order.paymentMethod] || order.paymentMethod}</TableCell>
+                    <TableCell>{(order.amountUsdt || 0).toFixed(2)}</TableCell>
                     <TableCell>
                       <Badge variant={getStatusVariant(order.status)}>{statusMap[order.status] || order.status}</Badge>
                     </TableCell>
-                    <TableCell>{new Date(order.created_at).toLocaleDateString('zh-CN')}</TableCell>
+                    <TableCell>{new Date(order.createdAt).toLocaleString('zh-CN')}</TableCell>
                   </TableRow>
                 )
               })

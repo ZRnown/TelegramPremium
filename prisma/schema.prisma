@@ -30,7 +30,7 @@ model User {
 // 订单表
 model Order {
   id                String   @id @default(cuid())
-  reqId             String   @unique // Fragment Request ID
+  reqId             String?  @unique // Fragment Request ID
   userId            String
   targetUsername    String
   months            Int
@@ -39,6 +39,7 @@ model Order {
   amountUsdt        Float?   // USDT 金额
   paymentMethod     String   // 'alipay' | 'usdt'
   status            String   // 订单状态
+  type              String   @default("gift") // 'gift' | 'recharge'
   tonAddress        String?
   epusdtOrderId    String?
   epusdtToken      String?
@@ -56,6 +57,7 @@ model Order {
   @@index([reqId])
   @@index([status])
   @@index([paymentMethod])
+  @@index([type])
   @@index([createdAt])
   @@map("orders")
 }

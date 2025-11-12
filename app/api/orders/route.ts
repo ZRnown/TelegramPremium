@@ -12,18 +12,18 @@ export async function GET() {
     const { prisma } = await import('@/lib/prisma')
     const orders = await prisma.order.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 100,
-      include: { user: true }
+      take: 200,
+      include: { user: { select: { id: true, userId: true, username: true } } }
     })
-    
-    const stats = {
-      total: await prisma.order.count(),
-      pending: await prisma.order.count({ where: { status: 'pending' } }),
-      completed: await prisma.order.count({ where: { status: 'completed' } }),
-      failed: await prisma.order.count({ where: { status: 'failed' } }),
-    }
 
-    return NextResponse.json({ orders, stats })
+    const total = await prisma.order.count()
+    const pending = await prisma.order.count({ where: { status: 'pending' } })
+    const completed = await prisma.order.count({ where: { status: 'completed' } })
+    const failed = await prisma.order.count({ where: { status: 'failed' } })
+    const completedOrders = await prisma.order.findMany({ where: { status: 'completed' }, select: { amountUsdt: true } })
+    const revenueUsdt = completedOrders.reduce((s, o) => s + (o.amountUsdt || 0), 0)
+
+    return NextResponse.json({ orders, stats: { total, pending, completed, failed, revenueUsdt } })
   } catch (error) {
     console.error('获取订单失败:', error)
     return NextResponse.json({ error: "内部服务器错误" }, { status: 500 })

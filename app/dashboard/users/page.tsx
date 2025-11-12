@@ -2,22 +2,35 @@ import UsersTable from "@/components/users-table"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { UsersIcon } from "lucide-react"
 
-async function getUsers() {
-  // Placeholder - will fetch from database
-  return []
-}
-
-async function getUserStats() {
-  return {
-    total: 0,
-    premium: 0,
-    active: 0,
-  }
-}
-
 export default async function UsersPage() {
-  const users = await getUsers()
-  const stats = await getUserStats()
+  const { prisma } = await import('@/lib/prisma')
+  const rawUsers = await prisma.user.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 200,
+    select: {
+      id: true,
+      userId: true,
+      username: true,
+      firstName: true,
+      lastName: true,
+      balance: true,
+      createdAt: true,
+      lastActiveAt: true,
+    }
+  })
+
+  const users = rawUsers.map(u => ({
+    ...u,
+    createdAt: u.createdAt.toISOString(),
+    lastActiveAt: u.lastActiveAt.toISOString(),
+  }))
+
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const stats = {
+    total: await prisma.user.count(),
+    active: await prisma.user.count({ where: { lastActiveAt: { gte: today } } }),
+  }
 
   return (
     <div className="space-y-6">
@@ -34,15 +47,6 @@ export default async function UsersPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Premium 用户</CardTitle>
-            <UsersIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.premium}</div>
           </CardContent>
         </Card>
         <Card>
