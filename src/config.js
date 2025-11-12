@@ -29,12 +29,10 @@ let config = {
     mnemonic: null,
     autoPay: true,
   },
-  epusdt: {
-    baseURL: 'https://api.epusdt.com',
-    token: null,
-    notifyUrl: null,
-    redirectUrl: null,
-    enabled: false,
+  telegramWallet: {
+    apiId: null,
+    apiHash: null,
+    sessionString: null,
   },
   server: {
     port: 3000,
@@ -59,11 +57,14 @@ export async function initializeConfig() {
   config = {
     telegramBotToken: dbConfig['bot_token'] || requireEnv('BOT_TOKEN'),
     fragment: {
-      baseURL: dbConfig['fragment_base_url'] || requireEnv('FRAGMENT_BASE_URL', 'https://fragment.com/api'),
+      baseURL: dbConfig['fragment_base_url'] || requireEnv('FRAGMENT_BASE_URL', 'https://fragment.com'),
       cookie: dbConfig['fragment_cookie'] || requireEnv('FRAGMENT_COOKIE'),
       hash: dbConfig['fragment_hash'] || requireEnv('FRAGMENT_HASH'),
       pollHash: dbConfig['fragment_poll_hash'] || dbConfig['fragment_hash'] || requireEnv('FRAGMENT_POLL_HASH', requireEnv('FRAGMENT_HASH')),
       autoRefresh: (dbConfig['fragment_auto_refresh'] || requireEnv('FRAGMENT_AUTO_REFRESH', 'true')).toLowerCase() === 'true',
+      // 钱包信息（用于 getGiftPremiumLink，默认值在 FragmentApi 中硬编码）
+      walletAccount: dbConfig['fragment_wallet_account'] || requireEnv('FRAGMENT_WALLET_ACCOUNT', null),
+      walletDevice: dbConfig['fragment_wallet_device'] || requireEnv('FRAGMENT_WALLET_DEVICE', null),
     },
     ton: {
       endpoint: dbConfig['ton_endpoint'] || requireEnv('TON_ENDPOINT', 'https://toncenter.com/api/v2/jsonRPC'),
@@ -71,11 +72,10 @@ export async function initializeConfig() {
       mnemonic: dbConfig['ton_mnemonic'] || requireEnv('TON_MNEMONIC'),
       autoPay: (dbConfig['ton_autopay'] || requireEnv('TON_AUTOPAY', 'true')).toLowerCase() === 'true',
     },
-    epusdt: {
-      baseURL: dbConfig['epusdt_base_url'] || requireEnv('EPUSDT_BASE_URL', 'https://api.epusdt.com'),
-      token: dbConfig['epusdt_token'] || requireEnv('EPUSDT_TOKEN'),
-      notifyUrl: dbConfig['epusdt_notify_url'] || requireEnv('EPUSDT_NOTIFY_URL'),
-      redirectUrl: dbConfig['epusdt_redirect_url'] || requireEnv('EPUSDT_REDIRECT_URL'),
+    telegramWallet: {
+      apiId: Number.parseInt(dbConfig['telegram_wallet_api_id'] || requireEnv('TELEGRAM_WALLET_API_ID', '0'), 10) || null,
+      apiHash: dbConfig['telegram_wallet_api_hash'] || requireEnv('TELEGRAM_WALLET_API_HASH'),
+      sessionString: dbConfig['telegram_wallet_session'] || requireEnv('TELEGRAM_WALLET_SESSION'),
     },
     server: {
       port: Number.parseInt(dbConfig['server_port'] || requireEnv('SERVER_PORT', '3000'), 10),
@@ -134,16 +134,7 @@ export function getConfigStatus() {
     }
   }
 
-  const epusdtEnabled = Boolean(config.epusdt.token);
-  config.epusdt.enabled = epusdtEnabled;
-  if (epusdtEnabled) {
-    if (!config.epusdt.notifyUrl) {
-      warnings.push('已配置 EPUSDT_TOKEN，但缺少 EPUSDT_NOTIFY_URL');
-    }
-    if (!config.epusdt.redirectUrl) {
-      warnings.push('已配置 EPUSDT_TOKEN，但缺少 EPUSDT_REDIRECT_URL');
-    }
-  }
+  // Telegram Wallet 支付已移除，现在只使用 TON 支付
 
   if (!Number.isFinite(config.store.orderTtlMs) || config.store.orderTtlMs <= 0) {
     config.store.orderTtlMs = 15 * 60 * 1000;

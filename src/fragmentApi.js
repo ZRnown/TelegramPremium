@@ -1,202 +1,229 @@
 import axios from 'axios';
-import { httpAgent, httpsAgent } from './utils/httpAgents.js';
-import { config } from './config.js';
+import { mnemonicToPrivateKey } from '@ton/crypto';
+import { WalletContractV5R1 } from '@ton/ton';
+import { beginCell, storeStateInit } from '@ton/core';
 
-/**
- * Fragment API 封装，负责 Premium 礼物购买流程所需的接口调用。
- * 所有请求都必须带上 Cookie 以及 hash 参数。
- */
-export class FragmentApi {
-  constructor({ baseURL, cookie, hash, pollHash, cookieManager }) {
-    if (!cookie) throw new Error('FragmentApi 初始化失败：缺少 Cookie');
-    if (!hash) throw new Error('FragmentApi 初始化失败：缺少 hash');
+const DEFAULT_DEVICE_JSON =
+  '{"platform":"mac","appName":"tonkeeper","appVersion":"4.3.2","maxProtocolVersion":2,"features":["SendTransaction",{"name":"SendTransaction","maxMessages":255,"extraCurrencySupported":true},{"name":"SignData","types":["text","binary","cell"]}]}';
+const TRANSACTION_VALUE = '1';
 
-    this.hash = hash;
-    this.pollHash = pollHash || hash;
-    this.cookieManager = cookieManager;
-    this.client = axios.create({
-      baseURL,
-      headers: {
-        Cookie: cookie,
-        'User-Agent': 'PremiumBot/1.0 (+https://fragment.com)',
-        Accept: 'application/json, text/plain, */*',
-      },
-            timeout: 15_000,
-            httpAgent,
-            httpsAgent,
-    });
-
-    this.client.interceptors.response.use(
-      (response) => response,
-      async (error) => {
-        if (error.response?.status === 401 || error.response?.status === 403) {
-          if (this.cookieManager) {
-            console.warn('检测到 Cookie 失效，尝试刷新...');
-            const refreshed = await this.cookieManager.refreshCookie();
-            if (refreshed) {
-              const newCookie = this.cookieManager.getCookie();
-              const newHash = this.cookieManager.getHash();
-              if (newCookie && newHash) {
-                this.hash = newHash;
-                this.pollHash = newHash;
-                this.client.defaults.headers.Cookie = newCookie;
-                console.log('Cookie 已刷新，重试请求...');
-                return this.client.request(error.config);
-              }
-            }
-          }
-        }
-        return Promise.reject(error);
-      },
-    );
-  }
-
-  async searchPremiumGiftRecipient({ query, months }) {
-    try {
-      // 使用 POST 请求，URL 为 /api?hash=...
-      // Content-Type: application/x-www-form-urlencoded
-      // 根据用户提供的示例，只需要 query 参数，不需要 months
-      const formData = new URLSearchParams();
-      formData.append('query', query);
-      // months 参数可能不需要，先不传
-      
-      const response = await this.client.post(
-        '/api',
-        formData.toString(),
-        {
-          params: {
-            hash: this.hash,
-          },
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-          },
-        }
-      );
-
-      const { data } = response;
-
-      // 输出完整的响应信息用于调试
-      console.log('Fragment API 响应:', JSON.stringify(data, null, 2));
-
-      // 新格式：{ ok: true, found: { recipient: "...", name: "...", photo: "..." } }
-      if (!data?.ok) {
-        const errorMsg = data?.error || data?.message || '未知错误';
-        throw new Error(`Fragment API 返回错误：${errorMsg}。响应数据：${JSON.stringify(data)}`);
-      }
-
-      if (!data?.found?.recipient) {
-        throw new Error(`未在 Fragment 中找到指定的收礼用户：${query}。响应数据：${JSON.stringify(data)}。请确保用户名正确，且该用户已注册 Telegram。`);
-      }
-
-      // 返回完整的用户信息，包括 recipient、name、photo 等
-      return {
-        recipient: data.found.recipient,
-        name: data.found.name || query,
-        photo: data.found.photo || null,
-        myself: data.found.myself || false,
-      };
-    } catch (error) {
-      // 详细的错误信息
-      if (error.response) {
-        console.error('Fragment API HTTP 错误:', {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data,
-          headers: error.response.headers,
-        });
-        
-        const errorData = error.response.data;
-        const errorMessage = errorData?.error || errorData?.message || error.message;
-        throw new Error(`Fragment API HTTP 错误 (${error.response.status}): ${errorMessage}。完整响应：${JSON.stringify(errorData)}`);
-      }
-      
-      if (error.request) {
-        console.error('Fragment API 请求失败:', {
-          url: error.config?.url,
-          method: error.config?.method,
-          data: error.config?.data,
-        });
-        throw new Error(`Fragment API 请求失败：${error.message}。请检查网络连接和代理设置。`);
-      }
-      
-      // 如果是我们抛出的错误，直接抛出
-      throw error;
-    }
-  }
-
-  async initGiftPremiumRequest({ recipient, months }) {
-    const { data } = await this.client.post(
-      '/initGiftPremiumRequest',
-      { recipient, months },
-      { params: { hash: this.hash } },
-    );
-
-    if (!data?.req_id) {
-      throw new Error('创建礼物订单失败，缺少 req_id');
-    }
-
-    return {
-      reqId: data.req_id,
-      amount: Number(data.amount),
-      raw: data,
-    };
-  }
-
-  async getGiftPremiumLink({ reqId, showSender = true }) {
-    const { data } = await this.client.get('/getGiftPremiumLink', {
-      params: {
-        hash: this.hash,
-        id: reqId,
-        show_sender: showSender ? 1 : 0,
-      },
-    });
-
-    if (!data?.check_params?.id) {
-      throw new Error('确认礼物订单失败，返回数据缺少 check_params.id');
-    }
-
-    return data;
-  }
-
-  async getTonkeeperRequest({ reqId }) {
-    const { data } = await this.client.get('/tonkeeper/rawRequest', {
-      params: {
-        id: reqId,
-        qr: 1,
-      },
-    });
-
-    const message = data?.body?.messages?.[0];
-    if (!message) {
-      throw new Error('TON 支付信息缺失');
-    }
-
-    return {
-      ...this.#parseTonkeeperMessage(message),
-      raw: data,
-    };
-  }
-
-  async checkRequest({ reqId }) {
-    const { data } = await this.client.get('/checkReq', {
-      params: {
-        hash: this.pollHash,
-        id: reqId,
-      },
-    });
-    return data;
-  }
-
-  #parseTonkeeperMessage(message) {
-    const amountNano = BigInt(message.amount);
-    const amountTon = Number(amountNano) / 1_000_000_000;
-
-    return {
-      address: message.address,
-      amountNano,
-      amountTon,
-      payload: message.payload,
-    };
+function assertString(value, message) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(message);
   }
 }
 
+export class FragmentApi {
+  constructor({ baseURL, cookie, hash, pollHash, walletDevice, mnemonic }) {
+    assertString(baseURL, 'Fragment baseURL 不能为空');
+    assertString(cookie, 'Fragment Cookie 不能为空');
+    assertString(hash, 'Fragment hash 不能为空');
+
+    this.baseURL = baseURL.replace(/\/$/, '');
+    this.cookie = cookie;
+    this.hash = hash;
+    this.pollHash = pollHash || hash;
+    this.walletDevice = walletDevice || DEFAULT_DEVICE_JSON;
+    this.mnemonic = mnemonic;
+
+    this.accountPayloadCache = null;
+    this.accountPayloadPromise = null;
+
+    this.client = axios.create({
+      baseURL: this.baseURL,
+      headers: {
+        Cookie: this.cookie,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36',
+      },
+      timeout: 30_000,
+    });
+  }
+
+  async request({ method, params = {}, usePollHash = false }) {
+    assertString(method, 'Fragment API method 不能为空');
+
+    const redact = (obj) => {
+      try {
+        const o = { ...obj };
+        if (o.account) o.account = '[redacted]';
+        if (o.device) o.device = '[device]';
+        return o;
+      } catch {
+        return {};
+      }
+    };
+
+    const searchParams = new URLSearchParams();
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null) {
+        searchParams.set(key, String(value));
+      }
+    }
+    searchParams.set('method', method);
+
+    const hashParam = usePollHash ? this.pollHash : this.hash;
+    const url = `/api?hash=${encodeURIComponent(hashParam)}`;
+
+    const started = Date.now();
+    try {
+      console.log(
+        `[FragmentAPI] -> ${method} ${url} params=${JSON.stringify(redact(params))}`,
+      );
+      const response = await this.client.post(url, searchParams.toString());
+      const ms = Date.now() - started;
+      const preview =
+        response?.data && typeof response.data === 'object'
+          ? JSON.stringify({ ok: response.data.ok, has_link: Boolean(response.data.link), keys: Object.keys(response.data).slice(0, 6) })
+          : String(response?.data ?? '');
+      console.log(
+        `[FragmentAPI] <- ${method} status=${response.status} time=${ms}ms data=${preview}`,
+      );
+      return response.data;
+    } catch (error) {
+      const ms = Date.now() - started;
+      const status = error.response?.status;
+      const data = error.response?.data;
+      const details = data && typeof data === 'object' ? JSON.stringify(data) : String(data ?? '');
+      console.error(
+        `[FragmentAPI] xx ${method} time=${ms}ms status=${status ?? 'n/a'} error=${error.message} resp=${details}`,
+      );
+      throw new Error(
+        `Fragment API 请求失败 (${method})${status ? ` [HTTP ${status}]` : ''}: ${error.message}${details ? ` | 响应: ${details}` : ''}`,
+      );
+    }
+  }
+
+  async searchPremiumGiftRecipient({ query, months }) {
+    assertString(query, '查询用户名不能为空');
+    const payload = {
+      query: query.trim(),
+    };
+    if (months) {
+      payload.months = String(months);
+    }
+
+    const result = await this.request({
+      method: 'searchPremiumGiftRecipient',
+      params: payload,
+    });
+
+    if (!result?.ok) {
+      throw new Error(
+        `searchPremiumGiftRecipient 调用失败：${result?.error ?? '未知错误'}`,
+      );
+    }
+
+    return result.found ?? result;
+  }
+
+  async initGiftPremiumRequest({ recipient, months }) {
+    assertString(recipient, 'recipient 参数不能为空');
+    const result = await this.request({
+      method: 'initGiftPremiumRequest',
+      params: {
+        recipient: recipient.trim(),
+        months: months ? String(months) : undefined,
+      },
+    });
+
+    const reqId = result?.req_id;
+    if (typeof reqId !== 'string' || reqId.trim().length === 0) {
+      throw new Error(
+        `initGiftPremiumRequest 调用失败：未返回有效的 req_id（响应: ${JSON.stringify(result)})`,
+      );
+    }
+
+    return {
+      reqId: reqId.trim(),
+      amount: result?.amount ?? null,
+      raw: result,
+    };
+  }
+
+  async getGiftPremiumLink({ reqId, showSender = 1 }) {
+    assertString(reqId, 'reqId 参数不能为空');
+
+    const accountPayload = await this.buildAccountPayload();
+
+    const result = await this.request({
+      method: 'getGiftPremiumLink',
+      params: {
+        id: reqId.trim(),
+        show_sender: String(showSender),
+        transaction: TRANSACTION_VALUE,
+        account: accountPayload,
+        device: this.walletDevice,
+      },
+    });
+
+    if (!result?.ok) {
+      throw new Error(
+        `getGiftPremiumLink 调用失败：${result?.error ?? '未知错误'}（reqId=${reqId})`,
+      );
+    }
+
+    return result;
+  }
+
+  async checkRequest({ reqId }) {
+    assertString(reqId, 'reqId 参数不能为空');
+
+    return this.request({
+      method: 'checkReq',
+      params: { id: reqId.trim() },
+      usePollHash: true,
+    });
+  }
+
+  async buildAccountPayload() {
+    if (this.accountPayloadCache) {
+      return this.accountPayloadCache;
+    }
+
+    if (!this.mnemonic) {
+      throw new Error('缺少 TON 助记词，无法生成 Fragment account 参数');
+    }
+
+    if (!this.accountPayloadPromise) {
+      this.accountPayloadPromise = (async () => {
+        const cleanedMnemonic = this.mnemonic
+          .replace(/\r?\n/g, ' ')
+          .replace(/\r/g, ' ')
+          .split(' ')
+          .map((word) => word.trim())
+          .filter((word) => word.length > 0);
+
+        if (cleanedMnemonic.length !== 12 && cleanedMnemonic.length !== 24) {
+          throw new Error(
+            `助记词格式错误：应为 12 或 24 个单词，当前解析到 ${cleanedMnemonic.length} 个`,
+          );
+        }
+
+        const keyPair = await mnemonicToPrivateKey(cleanedMnemonic);
+        const wallet = WalletContractV5R1.create({ publicKey: keyPair.publicKey });
+        const stateInitCell = beginCell().store(storeStateInit(wallet.init)).endCell();
+
+        const account = {
+          address: wallet.address.toRawString(),
+          chain: '-239',
+          walletStateInit: stateInitCell.toBoc().toString('base64'),
+          publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
+        };
+
+        console.log('🆕 Fragment account payload (v5r1):', account);
+
+        const payloadString = JSON.stringify(account);
+        this.accountPayloadCache = payloadString;
+        return payloadString;
+      })();
+    }
+
+    try {
+      return await this.accountPayloadPromise;
+    } finally {
+      this.accountPayloadPromise = null;
+    }
+  }
+}
