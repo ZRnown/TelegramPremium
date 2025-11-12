@@ -15,15 +15,9 @@ async function getConfigs() {
       { key: "fragment_hash", description: "Fragment Hash" },
       { key: "fragment_poll_hash", description: "Fragment Poll Hash（可选）" },
       { key: "fragment_base_url", description: "Fragment API 基础 URL（默认：https://fragment.com/api）" },
-      { key: "ton_wallet_address", description: "TON 钱包地址" },
       { key: "ton_mnemonic", description: "TON 钱包助记词（加密存储）" },
-      { key: "ton_endpoint", description: "TON API 端点（默认：https://toncenter.com/api/v2/jsonRPC）" },
-      { key: "ton_api_key", description: "TON API 密钥（可选）" },
-      { key: "epusdt_token", description: "Epusdt API 密钥" },
-      { key: "epusdt_base_url", description: "Epusdt API 基础 URL（默认：https://api.epusdt.com）" },
-      { key: "epusdt_notify_url", description: "Epusdt 回调地址" },
-      { key: "epusdt_redirect_url", description: "Epusdt 跳转地址" },
       { key: "server_url", description: "服务器 URL（用于回调）" },
+      { key: "customer_service", description: "客服联系方式（支持多行文本，支持 Markdown）" },
     ]
     
     // 合并数据库中的配置和定义
@@ -44,9 +38,7 @@ async function getConfigs() {
     const configDefinitions = [
       { key: "bot_token", description: "Telegram 机器人 Token" },
       { key: "fragment_hash", description: "Fragment Hash" },
-      { key: "ton_wallet_address", description: "TON 钱包地址" },
       { key: "ton_mnemonic", description: "TON 钱包助记词（加密存储）" },
-      { key: "epusdt_token", description: "Epusdt API 密钥" },
       { key: "server_url", description: "服务器 URL（用于回调）" },
     ]
     return configDefinitions.map((def, index) => ({
@@ -110,21 +102,23 @@ export default async function ConfigPage() {
           <CardContent>
             <ConfigForm
               configs={configs.filter((c) => 
-                ["ton_wallet_address", "ton_mnemonic", "ton_endpoint", "ton_api_key"].includes(c.config_key)
+                ["ton_mnemonic"].includes(c.config_key)
               )}
             />
           </CardContent>
         </Card>
 
+        
+
         <Card>
           <CardHeader>
-            <CardTitle>USDT 支付 (Epusdt)</CardTitle>
-            <CardDescription>配置 USDT 支付网关</CardDescription>
+            <CardTitle>客服设置</CardTitle>
+            <CardDescription>配置客服联系方式，用户点击"联系客服"时会显示此信息</CardDescription>
           </CardHeader>
           <CardContent>
             <ConfigForm
               configs={configs.filter((c) => 
-                ["epusdt_token", "epusdt_base_url", "epusdt_notify_url", "epusdt_redirect_url"].includes(c.config_key)
+                ["customer_service"].includes(c.config_key)
               )}
             />
           </CardContent>

@@ -31,6 +31,7 @@ export async function PUT(request: NextRequest) {
   try {
     const { configs } = await request.json()
     const { prisma } = await import('@/lib/prisma')
+    const { clearConfigCache } = await import('@/src/services/configService.js')
 
     // 批量更新配置
     await Promise.all(
@@ -42,6 +43,8 @@ export async function PUT(request: NextRequest) {
         })
       )
     )
+
+    clearConfigCache()
 
     return NextResponse.json({ success: true })
   } catch (error) {

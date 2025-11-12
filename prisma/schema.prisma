@@ -15,10 +15,12 @@ model User {
   username      String?
   firstName     String?
   lastName      String?
+  balance       Float    @default(0) // 用户余额（USDT）
   createdAt     DateTime @default(now())
   lastActiveAt  DateTime @default(now())
   
   orders        Order[]
+  recharges     RechargeOrder[]
   
   @@index([userId])
   @@index([username])
@@ -93,5 +95,30 @@ model PriceHistory {
   @@index([months])
   @@index([updatedAt])
   @@map("price_history")
+}
+
+// 充值订单表
+model RechargeOrder {
+  id                String   @id @default(cuid())
+  orderId           String   @unique // 充值订单号
+  userId            String
+  amount            Float    // 充值金额（USDT）
+  amountCny         Float?   // 对应的人民币金额
+  status            String   @default("pending") // pending, completed, failed, expired
+  epusdtOrderId    String?
+  epusdtToken      String?
+  epusdtPaymentUrl String?
+  createdAt         DateTime @default(now())
+  paidAt            DateTime?
+  completedAt       DateTime?
+  expiredAt         DateTime?
+  
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([orderId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("recharge_orders")
 }
 
